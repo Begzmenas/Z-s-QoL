@@ -1,6 +1,15 @@
 .gradle
 build
 .idea/
+out/
+*.class
+*.log
+*.tmp
+*.jfr
+*.hprof
+.env
+.env.*
+compile-errors.txt
 .project
 .settings/
 .classpath
