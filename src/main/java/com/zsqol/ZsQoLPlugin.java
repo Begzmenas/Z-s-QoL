@@ -2,8 +2,6 @@ package com.zsqol;
 
 import com.google.inject.Provides;
 import java.awt.Canvas;
-import java.awt.KeyboardFocusManager;
-import java.awt.KeyEventDispatcher;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -37,6 +35,8 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
+import net.runelite.client.input.KeyListener;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseAdapter;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.plugins.Plugin;
@@ -52,7 +52,7 @@ import net.runelite.client.util.Text;
 	description = "Personal transport bindings and Fairy Ring Travel Log selection",
 	tags = {"poh", "portal", "nexus", "jewellery", "quetzal", "mushtree", "spirit tree", "fairy ring", "teleport", "hotkey"}
 )
-public class ZsQoLPlugin extends Plugin
+public class ZsQoLPlugin extends Plugin implements KeyListener
 {
 	private static final int FIRST_SIDE_MOUSE_BUTTON = 4;
 	private static final int ACTIVATION_COOLDOWN_CLIENT_CYCLES = 20;
@@ -74,6 +74,9 @@ public class ZsQoLPlugin extends Plugin
 
 	@Inject
 	private MouseManager mouseManager;
+
+	@Inject
+	private KeyManager keyManager;
 
 	@Inject
 	private SpriteManager spriteManager;
@@ -98,7 +101,6 @@ public class ZsQoLPlugin extends Plugin
 	private volatile boolean gameInputFocused = true;
 	private volatile TeleportCategory activeGenericCategory;
 	private volatile String activeGenericMenuTitle = "";
-	private volatile boolean keyDispatcherRegistered;
 	private volatile TeleportTarget capturingTarget;
 
 	private volatile int suppressedCaptureKeyCode = KeyEvent.VK_UNDEFINED;
@@ -115,8 +117,6 @@ public class ZsQoLPlugin extends Plugin
 
 	private ZsQoLPanel panel;
 	private NavigationButton navigationButton;
-
-	private final KeyEventDispatcher keyDispatcher = this::dispatchKeyEvent;
 
 	private final MouseAdapter mouseListener = new MouseAdapter()
 	{
@@ -151,6 +151,7 @@ public class ZsQoLPlugin extends Plugin
 	protected void startUp()
 	{
 		reloadBindings();
+		keyManager.registerKeyListener(this);
 		mouseManager.registerMouseListener(0, mouseListener);
 
 		SwingUtilities.invokeLater(() ->
@@ -168,13 +169,6 @@ public class ZsQoLPlugin extends Plugin
 				.panel(panel)
 				.build();
 			clientToolbar.addNavigation(navigationButton);
-
-			if (!keyDispatcherRegistered)
-			{
-				KeyboardFocusManager.getCurrentKeyboardFocusManager()
-					.addKeyEventDispatcher(keyDispatcher);
-				keyDispatcherRegistered = true;
-			}
 		});
 
 		log.info("Z's QoL started with direct teleport-menu actions");
@@ -183,17 +177,11 @@ public class ZsQoLPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		keyManager.unregisterKeyListener(this);
 		mouseManager.unregisterMouseListener(mouseListener);
 
 		SwingUtilities.invokeLater(() ->
 		{
-			if (keyDispatcherRegistered)
-			{
-				KeyboardFocusManager.getCurrentKeyboardFocusManager()
-					.removeKeyEventDispatcher(keyDispatcher);
-				keyDispatcherRegistered = false;
-			}
-
 			if (navigationButton != null)
 			{
 				clientToolbar.removeNavigation(navigationButton);
@@ -406,6 +394,33 @@ public class ZsQoLPlugin extends Plugin
 		}
 
 		personalBindings = Collections.unmodifiableMap(loaded);
+	}
+
+	@Override
+	public void keyPressed(KeyEvent event)
+	{
+		dispatchKeyEvent(event);
+	}
+
+	@Override
+	public void keyTyped(KeyEvent event)
+	{
+		dispatchKeyEvent(event);
+	}
+
+	@Override
+	public void keyReleased(KeyEvent event)
+	{
+		dispatchKeyEvent(event);
+	}
+
+	@Override
+	public void focusLost()
+	{
+		blockedKeyCodes.clear();
+		blockedTypedCharacters.clear();
+		suppressedCaptureKeyCode = KeyEvent.VK_UNDEFINED;
+		suppressedCaptureCharacter = KeyEvent.CHAR_UNDEFINED;
 	}
 
 	private boolean dispatchKeyEvent(KeyEvent event)
